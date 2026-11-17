@@ -74,6 +74,11 @@ make test
 make vet
 ```
 
+Автоматическая демонстрация:
+
+```bash
+make demo
+```
 
 ## Основные сценарии
 
@@ -178,11 +183,12 @@ make vet
 
 Направление зависимостей:
 ```text
-console -> application -> domain
+console -> application, domain
 jsonstore -> application, domain
 csvexport -> application
 
-main -> di -> конкретные компоненты приложения
+cmd/pos -> di, jsonstore, csvexport
+di -> application, domain, console, samber/do
 ```
 
 `domain` не импортирует консоль, файловые адаптеры или DI-библиотеку. `application` не импортирует конкретные реализации хранения и экспорта.
@@ -236,16 +242,14 @@ service.AssignGrade(courseID, studentID, criterionID, score)
 
 Используется `github.com/samber/do/v2`.
 
-В `internal/di` регистрируются провайдеры:
+Конкретные адаптеры JSON-хранилища и CSV-экспорта создаются в точках входа `cmd/pos/main.go` и `cmd/demo/main.go`. В сборку они передаются через интерфейсы `CourseRepository` и `FinalScoreExporter`.
 
-- JSON-репозитория под интерфейсом `CourseRepository`;
-- стратегии расчёта;
-- `FinalScoreService`;
-- CSV-экспортёра под интерфейсом `FinalScoreExporter`;
-- `application.Service`;
-- `console.App`.
+В `internal/di`:
+- переданные адаптеры регистрируются через `do.ProvideValue`;
+- провайдеры стратегий и сервисов регистрируются через `do.Provide`;
+- `do.Invoke` разрешает зависимости и создаёт сервис приложения.
 
-Зависимости передаются конструкторам один раз и сохраняются внутри компонентов. Контейнер не передаётся в бизнес-логику. Точка сборки также обеспечивает соответствие режима и стратегии: `strict` собирается со `StrictStrategy`, `missing_as_zero` - с `MissingAsZeroStrategy`.
+`BuildService` собирает общий сервис пользовательских сценариев. `BuildApp` использует его и дополнительно создаёт консоль.
 
 ## Расчёт итогового балла
 
