@@ -1,4 +1,6 @@
 /data/
-*.out
+/demo-data/
 /pos
-*.exe
+/pos.exe
+/demo
+/demo.exe

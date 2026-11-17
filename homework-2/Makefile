@@ -1,6 +1,6 @@
 DATA_DIR ?= data
 
-.PHONY: run run-strict run-zero test vet fmt check build
+.PHONY: run run-strict run-zero test vet fmt check build demo
 
 run: run-strict
 
@@ -23,3 +23,6 @@ check: test vet
 
 build:
 	@go build -o pos ./cmd/pos
+
+demo:
+	@go run ./cmd/demo

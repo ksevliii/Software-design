@@ -7,14 +7,26 @@ import (
 	"github.com/samber/do/v2"
 
 	"pos/internal/adapters/console"
-	"pos/internal/adapters/csvexport"
-	"pos/internal/adapters/jsonstore"
 	"pos/internal/application"
 	"pos/internal/domain"
 )
 
-func BuildApp(directory string, mode application.CalculationMode, reader io.Reader, output io.Writer) (*console.App, error) {
+func BuildService(
+	repository application.CourseRepository,
+	exporter application.FinalScoreExporter,
+	mode application.CalculationMode) (*application.Service, error) {
+	if repository == nil {
+		return nil, fmt.Errorf("course repository must not be nil")
+	}
+	if exporter == nil {
+		return nil, fmt.Errorf("final score exporter must not be nil")
+	}
+	if !mode.Valid() {
+		return nil, fmt.Errorf("unknown calculation mode: %q", mode)
+	}
 	injector := do.New()
+	do.ProvideValue(injector, repository)
+	do.ProvideValue(injector, exporter)
 	do.Provide(injector, func(_ do.Injector) (domain.FinalScoreStrategy, error) {
 		switch mode {
 		case application.ModeStrict:
@@ -24,12 +36,6 @@ func BuildApp(directory string, mode application.CalculationMode, reader io.Read
 		default:
 			return nil, fmt.Errorf("unknown calculation mode: %q", mode)
 		}
-	})
-	do.Provide(injector, func(_ do.Injector) (application.CourseRepository, error) {
-		return jsonstore.NewRepository(directory)
-	})
-	do.Provide(injector, func(_ do.Injector) (application.FinalScoreExporter, error) {
-		return csvexport.Exporter{}, nil
 	})
 	do.Provide(injector, func(i do.Injector) (*domain.FinalScoreService, error) {
 		strategy, err := do.Invoke[domain.FinalScoreStrategy](i)
@@ -53,16 +59,26 @@ func BuildApp(directory string, mode application.CalculationMode, reader io.Read
 		}
 		return application.NewService(repository, scoring, exporter, mode)
 	})
-	do.Provide(injector, func(i do.Injector) (*console.App, error) {
-		service, err := do.Invoke[*application.Service](i)
-		if err != nil {
-			return nil, err
-		}
-		return console.NewApp(service, reader, output)
-	})
-	app, err := do.Invoke[*console.App](injector)
+	service, err := do.Invoke[*application.Service](injector)
 	if err != nil {
-		return nil, fmt.Errorf("build application: %w", err)
+		return nil, fmt.Errorf("build application service: %w", err)
+	}
+	return service, nil
+}
+
+func BuildApp(
+	repository application.CourseRepository,
+	exporter application.FinalScoreExporter,
+	mode application.CalculationMode,
+	reader io.Reader,
+	output io.Writer) (*console.App, error) {
+	service, err := BuildService(repository, exporter, mode)
+	if err != nil {
+		return nil, err
+	}
+	app, err := console.NewApp(service, reader, output)
+	if err != nil {
+		return nil, fmt.Errorf("build console application: %w", err)
 	}
 	return app, nil
 }
